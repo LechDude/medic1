@@ -152,9 +152,6 @@ date_of_take.click()
 #ate_of_take.send_keys(date.strftime('%Y-%m-%d %H-%M'))
 
 
-# In[71]:
-
-
 #ФИО врача
 doctor = browser.find_element_by_name('issue[custom_field_values][24]')
 doctor.send_keys('Диомидов Данила Павлович')
