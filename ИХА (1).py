@@ -3,22 +3,17 @@
 
 # # Технический блок
 
-
 from selenium.webdriver import Chrome
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait as wait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.select import Select
 from selenium.common.exceptions import NoSuchElementException
-from time import sleep
-import datetime
 from datetime import date
-
 
 BROWSER = Chrome('/Users/ddiom/chromedriver')
 URL = 'https://covid.rm.mosreg.ru/issues/new?tracker_id=29'
 BROWSER.get(URL)
-
 
 # # Блок получения данных
 bd = {
@@ -48,160 +43,106 @@ bd = {
 
 
 def getData(varName: str, browser=BROWSER):
-    return browser.find_element_by_name(varName).getText()
+    if varName == 'MKB_Dlg_MobilePhoneNumber':
+        tempVar = browser.find_element_by_name(varName).getText()
+        for phone in tempVar:
+
+            ph = ""
+
+            for sym in phone:
+                if sym not in ['(', ')', '/', '-', '+', '=']:
+                    ph = ph + sym
+            if len(ph) <= 10:
+                ph = "8" + ph
+            elif ph[0] == "7":
+                ph = "8" + ph[1:]
+            else:
+                pass
+
+            for sym in tempVar:
+                if sym not in ['(', ')', '/', '-', '+', '=']:
+                    phone = phone + sym
+        return phone
+    else:
+        return browser.find_element_by_name(varName).getText()
+
+
+def sendData(varName: str, dataFromBD, browser=BROWSER, ):
+    if varName[0:1] != "//":
+        browser.find_element_by_name(varName).send_keys(dataFromBD)
+    elif varName in ['issue[custom_field_values][57]', 'issue[custom_field_values][375]', 'issue[custom_field_values][377]']:
+        Select(browser.find_element_by_name(
+            varName)).select_by_value(dataFromBD)
+    else:
+        browser.find_element_by_xpath(varName).send_keys(dataFromBD)
 
 
 bd['SNILS'] = getData('MKB_Dlg.SNILS')
 bd['Surname'] = getData('MKB_Dlg_Family')
 bd['Name'] = getData('MKB_Dlg_Name')
 bd['Patronim'] = getData('MKB_Dlg_Patronim')
+bd['Phone'] = getData('MKB_Dlg_MobilePhoneNumber')
 
-# Получаем номер телефона
-emias_number = getData('MKB_Dlg_MobilePhoneNumber')
 
-# Преобразуем в формат для формы
-number = '8' + emias_number
-number = number.split('-')
-number = number[0] + number[1] + number[2] + number[3]
-
-# Добавляем номер в БД
-bd['Номер'] = number
-
+# TODO@LechDude (проверь эти 3 переменные)
 # Добавялем дату рождения
 
-bd['Дата рождения'] = birthday
-# Добавляем пол
-
-bd['Пол'] = sex
-# Добавляем адрес
-
-bd['Адрес'] = adress
-
-print(bd)
+bd['Birthday'] = birthday
+bd['Sex'] = sex
+bd['Address'] = adress
 
 
-# # Блок заполнения формы
+# Write data to form
+sendData('issue[custom_field_values][420]', bd['Surname'])
+sendData('issue[custom_field_values][421]', bd['Name'])
+sendData('issue[custom_field_values][422]', bd['Patronim'])
+sendData('issue[custom_field_values][14]', bd['Birthday'])
 
-
-# Фамилия
-surname_form = getData('issue[custom_field_values][420]')
-surname.send_keys(bd['Фамилия'])
-
-
-# Имя
-name_form = getData('issue[custom_field_values][421]')
-name.send_keys(bd['Имя'])
-
-
-# Отчество
-patronim_form = getData('issue[custom_field_values][422]')
-patronim_form.send_keys(bd['Отчество'])
-
-
-# Рождение
-birthday_form = getData('issue[custom_field_values][14]')
-birthday_form.send_keys(bd['Дата рождения'])
-
-
-# Пол
-sex_form = getData('issue[custom_field_values][11]')
 if bd['Пол'] == 'Муж':
-    sex_form.send_keys('М')
+    sendData('issue[custom_field_values][11]', bd['Sex'][0])
 else:
-    sex_form.send_keys('Ж')
+    sendData('issue[custom_field_values][11]', 'Ж')
 
+sendData('issue[custom_field_values][15]', bd['Phone'])
+sendData('issue[custom_field_values][424]', 'П')  # DocumentType
+sendData('issue[custom_field_values][12]', bd['SNILS'])
+sendData('issue[custom_field_values][7]', 'По')  # City
+sendData('issue[custom_field_values][16]', bd['Address'])
+sendData('issue[custom_field_values][18]', 'пенсионер')  # Job
+# Patien Category
+sendData('//select[@name="issue[custom_field_values][250]"]', 'О')
+sendData("issue[custom_field_values][6]", 'В')
 
-# Номер телефона
-phone_number = getData('issue[custom_field_values][15]')
-phone_number.send_keys(bd['Номер'])
-
-
-# Паспорт
-passport = getData('issue[custom_field_values][424]')
-passport.send_keys('П')
-
-
-# ОМС - но надо будет заменить на СНИЛС
-snils_form = getData('issue[custom_field_values][12]')
-snils_form.send_keys(bd['СНИЛС'])
-
-# Город
-city = getData('issue[custom_field_values][7]')
-city.send_keys('По')
-
-# Адрес
-adress_form = getData('issue[custom_field_values][16]')
-adress_form.send_keys(bd['Адрес'])
-
-
-# Место работы
-job = getData('issue[custom_field_values][18]')
-job.send_keys('пенсионер')
-
-
-# Категория пациента
-type_of_patient = browser.find_element_by_xpath(
-    '//select[@name="issue[custom_field_values][250]"]')
-type_of_patient.send_keys('О')
-
-# Место забора мазка (по умолчанию - в поликлинике)
-place = getData("issue[custom_field_values][6]")
-place.send_keys('В')
-
-
-# Организация забора мазка
-org = getData('issue[custom_field_values][57]')
-dd = Select(org)
-dd.select_by_value('ГБУЗ МО Подольская областная клиническая больница')
-
+org = sendData('issue[custom_field_values][57]',
+               'ГБУЗ МО Подольская областная клиническая больница')
 
 # Дата забора
+BROWSER.find_element_by_name('issue[custom_field_values][30]').click()
 
-#date = datetime.datetime.now()
-
-date_of_take = getData('issue[custom_field_values][30]')
-date_of_take.click()
-# date_of_take.clear()
-# leep(1)
-#ate_of_take.send_keys(date.strftime('%Y-%m-%d %H-%M'))
-
-
-# ФИО врача
-doctor = getData('issue[custom_field_values][24]')
-doctor.send_keys('Диомидов Данила Павлович')
+sendData('issue[custom_field_values][24]', 'Диомидов Данила Павлович')  # Dr.
 
 # Вид пробы (мазок из нологлотки - по умолчанию)
-kind_of_proba = browser.find_element_by_css_selector(
-    'input[type="radio"][value="Мазок/отделяемое из носоглотки и ротоглотки"]')
-kind_of_proba.click()
+BROWSER.find_element_by_css_selector(
+    'input[type="radio"][value="Мазок/отделяемое из носоглотки и ротоглотки"]').click()
 
 # Тип пробы (первичный - по умолчанию)
-type_of_proba = browser.find_element_by_css_selector(
-    'input[type="radio"][value="Первичный"]')
-type_of_proba.click()
+BROWSER.find_element_by_css_selector(
+    'input[type="radio"][value="Первичный"]').click()
 
 # Состояние пацента (удовлетровительно - по умолчанию)
-current = getData('issue[custom_field_values][373]')
-current.send_keys('у')
+sendData('issue[custom_field_values][373]', 'у')
 
 # Диагноз по МКБ
-sick = getData('issue[custom_field_values][375]')
-sick_dd = Select(sick)
-sick_dd.select_by_value('504')
+sendData('issue[custom_field_values][375]', '504')
 
 # Диагноз подтверждён
-verif = getData('issue[custom_field_values][377]')
-verif_dd = Select(verif)
-verif_dd.select_by_value('732')
-
+sendData('issue[custom_field_values][377]', '732')
 
 # Дата забора пробы (текущий день)
 current_date = date.today()
 current_date = current_date.strftime('%d-%m-%Y')
 current_date = current_date.split('-')
 current_date = current_date[0]+current_date[1]+current_date[2]
-print(current_date)
 
 # Передача даты в поле
-current = getData('issue[custom_field_values][147]')
-current.send_keys('14122022')
+sendData('issue[custom_field_values][147]', current_date)
